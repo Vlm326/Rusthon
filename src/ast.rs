@@ -1,3 +1,4 @@
+// ast.rs
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
     Int,
@@ -7,8 +8,22 @@ pub enum Type {
 
 #[derive(Debug, Clone)]
 pub enum Stmt {
-    VarDecl { name: String, ty: Type, init: Expr },
+    VarDecl {
+        name: String,
+        ty: Type,
+        init: Expr,
+    },
     ExprStmt(Expr),
+    Branch {
+        cond: Expr,
+        then_branch: Vec<Stmt>,
+        else_if_branches: Vec<Stmt>,
+        else_branch: Vec<Stmt>,
+    },
+    ElseIfBranch {
+        cond: Expr,
+        then_branch: Vec<Stmt>,
+    },
 }
 
 #[derive(Debug, Clone)]

@@ -1,3 +1,4 @@
+// parser.rs
 use crate::ast::{BinOp, Expr, Program, Stmt, Type};
 use crate::lexer::{Lexer, Token};
 
@@ -34,6 +35,7 @@ impl Parser {
             Token::LParen => {
                 self.bump();
                 let expr = self.parse_expr();
+                println!("[PARSER DEBUG] {:?}", expr);
                 if self.current_token != Token::RParen {
                     panic!("Expected ')'");
                 }
@@ -120,27 +122,29 @@ impl Parser {
         let mut node = self.parse_term();
 
         loop {
-            match self.current_token {
-                Token::Plus => {
-                    self.bump();
-                    let rhs = self.parse_term();
-                    node = Expr::Binary {
-                        left: Box::new(node),
-                        op: BinOp::Add,
-                        right: Box::new(rhs),
-                    };
-                }
-                Token::Minus => {
-                    self.bump();
-                    let rhs = self.parse_term();
-                    node = Expr::Binary {
-                        left: Box::new(node),
-                        op: BinOp::Sub,
-                        right: Box::new(rhs),
-                    };
-                }
+            let op = match self.current_token {
+                Token::Plus => BinOp::Add,
+                Token::Minus => BinOp::Sub,
+                Token::EqEq => BinOp::Eq,
+                Token::NotEq => BinOp::NotEq,
+                Token::Lt => BinOp::Lt,
+                Token::LtEq => BinOp::LtEq,
+                Token::Gt => BinOp::Gt,
+                Token::GtEq => BinOp::GtEq,
                 _ => break,
-            }
+            };
+
+            // съели оператор
+            self.bump();
+
+            // правую часть парсим как term (чтобы * и / были приоритетнее)
+            let rhs = self.parse_term();
+
+            node = Expr::Binary {
+                left: Box::new(node),
+                op,
+                right: Box::new(rhs),
+            };
         }
 
         node
@@ -175,6 +179,7 @@ impl Parser {
     fn parse_stmt(&mut self) -> Stmt {
         match self.current_token {
             Token::Kwvar => self.parse_var_decl(),
+            Token::KwIf => self.parce_if_stmt(),
             _ => {
                 let expr = self.parse_expr();
                 if self.current_token == Token::Newline {
@@ -225,4 +230,63 @@ impl Parser {
             other => panic!("expected type name, found {:?}", other),
         }
     }
+
+    //====== branching ======
+    fn parse_block(&mut self) -> Vec<Stmt> {
+        self.expect(Token::LBrace);
+        self.skip_newlines();
+        let mut stmts = Vec::new();
+
+        while self.current_token != Token::RBrace && self.current_token != Token::EOF {
+            let stmt = self.parse_stmt();
+            stmts.push(stmt);
+            self.skip_newlines();
+        }
+        self.expect(Token::RBrace);
+        stmts
+    }
+
+    fn parce_if_stmt(&mut self) -> Stmt {
+    // current_token == KwIf
+    self.bump(); // съели 'if'
+
+    let cond = self.parse_expr();
+
+    let then_branch = self.parse_block();
+
+    let mut else_if_branches: Vec<Stmt> = Vec::new();
+
+    self.skip_newlines();
+
+    loop {
+        if self.current_token == Token::KwElseIf {
+            self.bump(); // съели 'elif'
+
+            let cond = self.parse_expr();
+            let then_branch = self.parse_block();
+
+            else_if_branches.push(Stmt::ElseIfBranch { cond, then_branch });
+
+            self.skip_newlines();
+        } else {
+            break;
+        }
+    }
+
+    let else_branch = if self.current_token == Token::KwElse {
+        self.bump(); // съели 'else'
+        let block = self.parse_block();
+        block
+    } else {
+        Vec::new()
+    };
+
+    Stmt::Branch {
+        cond,
+        then_branch,
+        else_if_branches,
+        else_branch,
+    }
+}
+
 }

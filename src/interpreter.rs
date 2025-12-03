@@ -1,3 +1,4 @@
+// interpreter.rs
 use crate::ast::{BinOp, Expr, Program, Stmt, Type};
 use crate::stdlib;
 use std::{collections::HashMap, fmt::Debug};
@@ -36,11 +37,50 @@ impl Interpreter {
                 }
                 self.env.insert(name.clone(), value);
             }
+
             Stmt::ExprStmt(expr) => {
                 let _v = self.eval_expr(expr);
             }
+
+            Stmt::Branch {
+                cond,
+                then_branch,
+                else_if_branches,
+                else_branch,
+            } => {
+                // 1) if (...)
+                if let Value::Bool(true) = self.eval_expr(cond) {
+                    for s in then_branch {
+                        self.exec_stmt(s);
+                    }
+                    return;
+                }
+
+                // 2) else if (...) {...} цепочка
+                for branch in else_if_branches {
+                    if let Stmt::ElseIfBranch { cond, then_branch } = branch {
+                        if let Value::Bool(true) = self.eval_expr(cond) {
+                            for s in then_branch {
+                                self.exec_stmt(s);
+                            }
+                            return;
+                        }
+                    } else {
+                        // На всякий случай — защитный assert
+                        panic!("non-ElseIfBranch inside else_if_branches");
+                    }
+                }
+
+                // 3) else { ... }
+                for s in else_branch {
+                    self.exec_stmt(s);
+                }
+            }
+
+            _ => panic!("Unsupported statement"),
         }
     }
+
     fn value_matches_type(value: &Value, ty: &Type) -> bool {
         match (value, ty) {
             (Value::Int(_), Type::Int) => true,

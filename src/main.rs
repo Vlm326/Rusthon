@@ -16,14 +16,14 @@ fn main() {
     let args: Vec<String> = env::args().collect();
 
     // Ищем файл с расширением .rht
-    let path = args.iter()
+    let path = args
+        .iter()
         .find(|arg| arg.ends_with(".rht"))
         .expect("❌ You must pass a .rht program file as an argument.")
         .clone();
 
     // Читаем текст программы
-    let program_text = fs::read_to_string(&path)
-        .expect("❌ Failed to read the program file.");
+    let program_text = fs::read_to_string(&path).expect("❌ Failed to read the program file.");
 
     // Создаём лексер на основе текста
     let lexer = Lexer::new(&program_text);

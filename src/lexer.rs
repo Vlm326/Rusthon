@@ -12,6 +12,7 @@ pub enum Token {
     KwDef,
     KwReturn,
     KwIf,
+    KwElseIf,
     KwElse,
     KwFor,
     KwIn,
@@ -42,8 +43,8 @@ pub enum Token {
     RParen,   // )
     LBracket, // [
     RBracket, // ]
-    LCurly,   // {
-    RCurly,   // }
+    LBrace,   // {
+    RBrace,   // }
     Colon,    // :
     Comma,    // ,
 }
@@ -117,8 +118,8 @@ impl Lexer {
             '/' => Slash,
             '%' => Percent,
 
-            '{' => LCurly,
-            '}' => RCurly,
+            '{' => LBrace,
+            '}' => RBrace,
             '(' => LParen,
             ')' => RParen,
             '[' => LBracket,
@@ -202,6 +203,7 @@ impl Lexer {
             "def" => Token::KwDef,
             "return" => Token::KwReturn,
             "if" => Token::KwIf,
+            "elif" => Token::KwElseIf,
             "else" => Token::KwElse,
             "for" => Token::KwFor,
             "in" => Token::KwIn,
