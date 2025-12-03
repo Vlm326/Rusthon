@@ -65,18 +65,16 @@ impl Interpreter {
                 let l = self.eval_expr(left);
                 let r = self.eval_expr(right);
                 self.eval_bin(l, op, r)
-            },
-            Expr::Call { callee, args } => {
-                self.eval_call(callee, args)
             }
+            Expr::Call { callee, args } => self.eval_call(callee, args),
         }
     }
 
-    fn eval_call(&mut self, callee: &String, args: &Vec<Expr>) -> Value{
+    fn eval_call(&mut self, callee: &String, args: &Vec<Expr>) -> Value {
         let value_args: Vec<Value> = args.iter().map(|expr| self.eval_expr(expr)).collect();
-        if let Some(result) = stdlib::call_builtin(&callee, &value_args){
+        if let Some(result) = stdlib::call_builtin(&callee, &value_args) {
             result
-        } else{
+        } else {
             panic!("Unknown argumets or function");
         }
     }
