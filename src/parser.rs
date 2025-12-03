@@ -19,7 +19,7 @@ impl Parser {
         self.current_token = self.lexer.next_token();
     }
 
-    fn parse_factor(&mut self) -> Expr {
+    fn parse_primary(&mut self) -> Expr {
         match &self.current_token {
             Token::IntLiteral(value) => {
                 let expr = Expr::Int(*value);
@@ -40,10 +40,53 @@ impl Parser {
                 self.bump();
                 expr
             }
-            _ => panic!("Unexpected token: {:?}", self.current_token),
+            _ => panic!("Unexpected primary token: {:?}", self.current_token),
         }
     }
-    
+
+    fn parse_factor(&mut self) -> Expr {
+        let mut node = self.parse_primary();
+        loop {
+            match self.current_token {
+                Token::LParen => {
+                    node = self.parse_call(node);
+                }
+                _ => break,
+            }
+        }
+        node
+    }
+    fn parse_call(&mut self, calle_expr: Expr) -> Expr {
+        let callee_name = match calle_expr {
+            Expr::Var(name) => name,
+            other => panic!("can only call functions by name"),
+        };
+        // съели (
+        self.bump();
+        let mut args: Vec<Expr> = Vec::new();
+        if self.current_token != Token::RParen {
+            loop {
+                let arg = self.parse_expr();
+                args.push(arg);
+                if self.current_token == Token::Comma {
+                    self.bump();
+                    continue;
+                }
+                if self.current_token == Token::RParen {
+                    break;
+                }
+            }
+            if self.current_token != Token::RParen {
+                panic!("Expected ) at the end of the function call");
+            }
+            self.bump();
+        }
+        Expr::Call {
+            callee: callee_name,
+            args: args,
+        }
+    }
+
     fn parse_term(&mut self) -> Expr {
         let mut node = self.parse_factor();
 
@@ -102,8 +145,6 @@ impl Parser {
 
         node
     }
-
-    
 
     fn parse_var_decl(&mut self) -> Stmt {
         self.bump();
