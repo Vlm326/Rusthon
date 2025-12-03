@@ -1,3 +1,10 @@
-var a: int = 7
+var a: int = 56
 var b: int = 16
-print(a + b)
+var c: int = 56
+if (a < b) {
+    print(a)
+} elif (a == c){
+    print(c)
+} else {
+    print(b)
+}
