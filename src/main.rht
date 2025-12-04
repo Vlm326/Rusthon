@@ -1,18 +1,16 @@
-var xs: list = [1, 2, 3]
-var s: str = "hi"
+func test_for_c() {
+    print("== C-style for ==")
+    for (var i: int = 0; i < 5; i = i + 1) {
+        print("i =", i)
+    }
 
-print(xs)
-
-for x in xs {
-    print(x)
+    print("== for(;;) бесконечный, но мы выходим по if ==")
+    var j: int = 0
+    for (; ; j = j + 1) {
+        print("j =", j)
+        if (j >= 2) {
+            return
+        }
+    }
 }
-
-for ch in "ok" {
-    print(ch)
-}
-
-var i: int = 0
-i = i + 1
-print(i)
-i = 10
-print(i)
+test_for_c()

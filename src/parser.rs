@@ -1,6 +1,6 @@
 // parser.rs
-use crate::ast::{BinOp, Expr, Program, Stmt, Type};
-use crate::interpreter::Value;
+
+use crate::ast::{BinOp, Expr, Function, Program, Stmt, Type};
 use crate::lexer::{Lexer, Token};
 
 pub struct Parser {
@@ -9,6 +9,8 @@ pub struct Parser {
 }
 
 impl Parser {
+    /* ======================== БАЗА ======================== */
+
     pub fn new(mut lexer: Lexer) -> Self {
         let first = lexer.next_token();
         Self {
@@ -17,14 +19,69 @@ impl Parser {
         }
     }
 
+    /// Сдвигаем текущий токен вперёд.
     fn bump(&mut self) {
         self.current_token = self.lexer.next_token();
+        // eprintln!("[DEBUG] bump -> token = {:?}", self.current_token);
     }
 
+    /// Подглядеть следующий токен, не потребляя его.
     fn peek_token(&mut self) -> Token {
         let mut cloned_lexer = self.lexer.clone();
         cloned_lexer.next_token()
     }
+
+    /// Унифицированная функция ошибки парсера.
+    fn error(&self, msg: &str) -> ! {
+        panic!("Parse error near token {:?}: {}", self.current_token, msg);
+    }
+
+    /// Проверяем, что текущий токен — expected, и сдвигаем его.
+    fn expect(&mut self, expected: Token) {
+        if self.current_token == expected {
+            self.bump();
+        } else {
+            self.error(&format!(
+                "expected {:?}, found {:?}",
+                expected, self.current_token
+            ));
+        }
+    }
+
+    /// Пропускаем все пустые строки.
+    fn skip_newlines(&mut self) {
+        while let Token::Newline = self.current_token {
+            self.bump();
+        }
+    }
+
+    /* ======================== ТИПЫ ======================== */
+
+    fn parse_type(&mut self) -> Type {
+        match &self.current_token {
+            Token::Ident(name) if name == "int" => {
+                self.bump();
+                Type::Int
+            }
+            Token::Ident(name) if name == "bool" => {
+                self.bump();
+                Type::Bool
+            }
+            Token::Ident(name) if name == "str" => {
+                self.bump();
+                Type::Str
+            }
+            Token::Ident(name) if name == "list" => {
+                self.bump();
+                Type::List
+            }
+            other => self.error(&format!("expected type name, found {:?}", other)),
+        }
+    }
+
+    /* ====================== ВЫРАЖЕНИЯ ====================== */
+    // Грамматика по приоритетам:
+    // primary -> factor -> term -> expr (пока без && и ||)
 
     fn parse_primary(&mut self) -> Expr {
         match &self.current_token {
@@ -55,13 +112,16 @@ impl Parser {
                 self.bump();
                 let expr = self.parse_expr();
                 if self.current_token != Token::RParen {
-                    panic!("Expected ')'");
+                    self.error("expected ')' after parenthesized expression");
                 }
-                self.bump();
+                self.bump(); // съели ')'
                 expr
             }
             Token::LBracket => self.parse_list_literal(),
-            _ => panic!("Unexpected primary token: {:?}", self.current_token),
+            other => self.error(&format!(
+                "unexpected token in primary expression: {:?}",
+                other
+            )),
         }
     }
 
@@ -77,34 +137,45 @@ impl Parser {
         }
         node
     }
+
     fn parse_call(&mut self, calle_expr: Expr) -> Expr {
         let callee_name = match calle_expr {
             Expr::Var(name) => name,
-            other => panic!("can only call functions by name"),
+            other => self.error(&format!(
+                "can only call functions by name, got expression: {:?}",
+                other
+            )),
         };
-        // съели (
-        self.bump();
+
+        // сейчас current_token == LParen
+        self.bump(); // съели '('
+
         let mut args: Vec<Expr> = Vec::new();
+
+        // если следующий токен НЕ ')', значит, есть аргументы
         if self.current_token != Token::RParen {
             loop {
                 let arg = self.parse_expr();
                 args.push(arg);
+
                 if self.current_token == Token::Comma {
                     self.bump();
                     continue;
-                }
-                if self.current_token == Token::RParen {
+                } else {
                     break;
                 }
             }
-            if self.current_token != Token::RParen {
-                panic!("Expected ) at the end of the function call");
-            }
-            self.bump();
         }
+
+        // тут мы ДОЛЖНЫ быть на ')'
+        if self.current_token != Token::RParen {
+            self.error("expected ')' at the end of the function call");
+        }
+        self.bump(); // съели ')'
+
         Expr::Call {
             callee: callee_name,
-            args: args,
+            args,
         }
     }
 
@@ -137,6 +208,8 @@ impl Parser {
 
         node
     }
+
+    /// Полное выражение: +, -, сравнения и т.п.
     pub fn parse_expr(&mut self) -> Expr {
         let mut node = self.parse_term();
 
@@ -153,10 +226,7 @@ impl Parser {
                 _ => break,
             };
 
-            // съели оператор
             self.bump();
-
-            // правую часть парсим как term (чтобы * и / были приоритетнее)
             let rhs = self.parse_term();
 
             node = Expr::Binary {
@@ -169,8 +239,36 @@ impl Parser {
         node
     }
 
+    fn parse_list_literal(&mut self) -> Expr {
+        self.bump(); // съели '['
+
+        let mut items = Vec::new();
+
+        if self.current_token != Token::RBracket {
+            loop {
+                let expr = self.parse_expr();
+                items.push(expr);
+
+                if self.current_token == Token::Comma {
+                    self.bump();
+                    continue;
+                }
+                break;
+            }
+        }
+
+        if self.current_token != Token::RBracket {
+            self.error("expected ']' at end of list literal");
+        }
+        self.bump(); // съели ']'
+
+        Expr::ListLiteral(items)
+    }
+
+    /* ===================== ОПЕРАТОРЫ ====================== */
+
     fn parse_var_decl(&mut self) -> Stmt {
-        self.bump();
+        self.bump(); // съели 'var'
 
         let name = match &self.current_token {
             Token::Ident(n) => {
@@ -178,7 +276,10 @@ impl Parser {
                 self.bump();
                 s
             }
-            other => panic!("expected identifier after 'var', found {:?}", other),
+            other => self.error(&format!(
+                "expected identifier after 'var', found {:?}",
+                other
+            )),
         };
 
         self.expect(Token::Colon);
@@ -195,79 +296,50 @@ impl Parser {
 
         Stmt::VarDecl { name, ty, init }
     }
-    fn parse_stmt(&mut self) -> Stmt {
-        match self.current_token {
-            Token::Kwvar => self.parse_var_decl(),
-            Token::KwIf => self.parse_if_stmt(),
-            Token::KwWhile => self.parse_while_stmt(),
-            Token::KwFor => self.parse_for_stmt(),
-            Token::Ident(_) => {
-                if self.peek_token() == Token::Eq {
-                    self.parse_assign_stmt()
-                } else {
-                    let expr = self.parse_expr();
-                    if self.current_token == Token::Newline {
-                        self.bump();
-                    }
-                    Stmt::ExprStmt(expr)
-                }
-            }
-            _ => {
-                let expr = self.parse_expr();
-                if self.current_token == Token::Newline {
-                    self.bump();
-                }
-                Stmt::ExprStmt(expr)
-            }
-        }
-    }
 
-    pub fn parse_program(&mut self) -> Program {
-        let mut stmts: Vec<Stmt> = Vec::new();
-        self.skip_newlines();
-        while self.current_token != Token::EOF {
-            stmts.push(self.parse_stmt());
-            self.skip_newlines();
-        }
-        Program { stmts }
-    }
+    fn parse_assign_stmt(&mut self) -> Stmt {
+        let name = match &self.current_token {
+            Token::Ident(n) => {
+                let s = n.clone();
+                self.bump();
+                s
+            }
+            other => self.error(&format!(
+                "expected identifier at start of assignment, found {:?}",
+                other
+            )),
+        };
 
-    fn expect(&mut self, expected: Token) {
-        if self.current_token == expected {
+        self.expect(Token::Eq);
+
+        let expr = self.parse_expr();
+
+        if self.current_token == Token::Newline {
             self.bump();
+        }
+
+        Stmt::Assign { name, expr }
+    }
+
+    fn parse_return_stmt(&mut self) -> Stmt {
+        self.bump(); // съели 'return'
+
+        if self.current_token == Token::Newline || self.current_token == Token::RBrace {
+            if self.current_token == Token::Newline {
+                self.bump();
+            }
+            Stmt::Return(None)
         } else {
-            panic!("expected {:?}, found {:?}", expected, self.current_token);
+            let expr = self.parse_expr();
+            if self.current_token == Token::Newline {
+                self.bump();
+            }
+            Stmt::Return(Some(expr))
         }
     }
 
-    fn skip_newlines(&mut self) {
-        while let Token::Newline = self.current_token {
-            self.bump();
-        }
-    }
-    fn parse_type(&mut self) -> Type {
-        match &self.current_token {
-            Token::Ident(name) if name == "int" => {
-                self.bump();
-                Type::Int
-            }
-            Token::Ident(name) if name == "bool" => {
-                self.bump();
-                Type::Bool
-            }
-            Token::Ident(name) if name == "str" => {
-                self.bump();
-                Type::Str
-            }
-            Token::Ident(name) if name == "list" => {
-                self.bump();
-                Type::List
-            }
-            other => panic!("expected type name, found {:?}", other),
-        }
-    }
+    /* ================== БЛОКИ И ВЕТВЛЕНИЯ ================== */
 
-    //====== branching ======
     fn parse_block(&mut self) -> Vec<Stmt> {
         self.expect(Token::LBrace);
         self.skip_newlines();
@@ -283,7 +355,6 @@ impl Parser {
     }
 
     fn parse_if_stmt(&mut self) -> Stmt {
-        // current_token == KwIf
         self.bump(); // съели 'if'
 
         let cond = self.parse_expr();
@@ -326,89 +397,198 @@ impl Parser {
     }
 
     fn parse_while_stmt(&mut self) -> Stmt {
-        self.bump();
+        self.bump(); // съели 'while'
         let cond = self.parse_expr();
         let body = self.parse_block();
 
         Stmt::While { cond, body }
     }
+
     fn parse_for_stmt(&mut self) -> Stmt {
-        self.bump();
+        self.bump(); // съели 'for'
 
         match &self.current_token {
-            Token::LParen => {
-                self.bump();
-                let cond = self.parse_expr();
-                if self.current_token != Token::RParen {
-                    panic! {"Invalid for statement"};
-                }
-                let body = self.parse_block();
-                Stmt::For { cond, body }
-            }
+            // ---------- foreach: for x in xs { ... } ----------
             Token::Ident(name) => {
                 let var_name = name.clone();
-                self.bump();
+                self.bump(); // съели имя
+
                 if self.current_token != Token::KwIn {
-                    panic!("Invalid foreach statement");
+                    self.error("invalid foreach statement: expected 'in'");
                 }
-                self.bump();
+                self.bump(); // съели 'in'
+
                 let iter_expr = self.parse_expr();
                 let body = self.parse_block();
+
                 Stmt::ForEach {
                     var_name,
                     iter_expr,
                     body,
                 }
             }
-            _ => panic!("Invalid for statement"),
+
+            // ---------- C-style for: for ( init ; cond ; step ) { ... } ----------
+            Token::LParen => {
+                self.bump(); // съели '('
+
+                // --- init: либо пусто, либо обычный statement (var, assign, exprstmt) ---
+                let init: Option<Box<Stmt>> = if self.current_token == Token::Semi {
+                    // сразу ';' -> пустой init
+                    None
+                } else {
+                    // парсим statement до ';'
+                    let init_stmt = self.parse_stmt();
+                    Some(Box::new(init_stmt))
+                };
+
+                // ожидаем ';'
+                self.expect(Token::Semi);
+
+                // --- cond: либо пусто, либо выражение до следующего ';' ---
+                let cond: Option<Expr> = if self.current_token == Token::Semi {
+                    // пустое условие -> бесконечный цикл (как for(;;))
+                    None
+                } else {
+                    Some(self.parse_expr())
+                };
+
+                // ожидаем ';'
+                self.expect(Token::Semi);
+
+                // --- step: либо пусто, либо statement до ')' ---
+                let step: Option<Box<Stmt>> = if self.current_token == Token::RParen {
+                    None
+                } else {
+                    let step_stmt = self.parse_stmt();
+                    Some(Box::new(step_stmt))
+                };
+
+                // ожидаем ')'
+                self.expect(Token::RParen);
+
+                // тело — обычный блок { ... }
+                let body = self.parse_block();
+
+                Stmt::For {
+                    init,
+                    cond,
+                    step,
+                    body,
+                }
+            }
+
+            other => self.error(&format!("invalid for-statement start: {:?}", other)),
         }
     }
-    fn parse_list_literal(&mut self) -> Expr {
-        self.bump();
 
-        let mut items = Vec::new();
+    fn parse_stmt(&mut self) -> Stmt {
+        // eprintln!("[DEBUG] parse_stmt: current_token = {:?}", self.current_token);
 
-        if self.current_token != Token::RBracket {
-            loop {
-                let expr = self.parse_expr();
-                items.push(expr);
+        match self.current_token {
+            Token::Kwvar => self.parse_var_decl(),
+            Token::KwIf => self.parse_if_stmt(),
+            Token::KwWhile => self.parse_while_stmt(),
+            Token::KwFor => self.parse_for_stmt(),
+            Token::KwReturn => self.parse_return_stmt(),
 
-                if self.current_token == Token::Comma {
-                    self.bump();
-                    continue;
+            Token::Ident(_) => {
+                // либо присваивание, либо выражение / вызов
+                if self.peek_token() == Token::Eq {
+                    self.parse_assign_stmt()
+                } else {
+                    let expr = self.parse_expr();
+                    if self.current_token == Token::Newline {
+                        self.bump();
+                    }
+                    Stmt::ExprStmt(expr)
                 }
-                break;
+            }
+
+            _ => {
+                let expr = self.parse_expr();
+                if self.current_token == Token::Newline {
+                    self.bump();
+                }
+                Stmt::ExprStmt(expr)
             }
         }
-
-        if self.current_token != Token::RBracket {
-            panic!("expected ']' at end of list literal");
-        }
-        self.bump();
-
-        Expr::ListLiteral(items)
     }
-    fn parse_assign_stmt(&mut self) -> Stmt {
+
+    /* ==================== ФУНКЦИИ / ПРОГРАММА ==================== */
+
+    fn parse_function(&mut self) -> Function {
+        self.bump(); // съели 'func'
+
         let name = match &self.current_token {
             Token::Ident(n) => {
                 let s = n.clone();
                 self.bump();
                 s
             }
-            other => panic!(
-                "expected identifier at start of assignment, found {:?}",
+            other => self.error(&format!(
+                "expected function name after 'func', found {:?}",
                 other
-            ),
+            )),
         };
 
-        self.expect(Token::Eq);
+        self.expect(Token::LParen);
 
-        let expr = self.parse_expr();
+        let mut params: Vec<(String, Type)> = Vec::new();
 
-        if self.current_token == Token::Newline {
-            self.bump();
+        if self.current_token != Token::RParen {
+            loop {
+                let param_name = match &self.current_token {
+                    Token::Ident(n) => {
+                        let s = n.clone();
+                        self.bump();
+                        s
+                    }
+                    other => self.error(&format!("expected parameter name, found {:?}", other)),
+                };
+
+                self.expect(Token::Colon);
+
+                let param_type = self.parse_type();
+
+                params.push((param_name, param_type));
+
+                if self.current_token == Token::Comma {
+                    self.bump();
+                    continue;
+                } else {
+                    break;
+                }
+            }
         }
 
-        Stmt::Assign { name, expr }
+        self.expect(Token::RParen);
+
+        let body = self.parse_block();
+
+        Function { name, params, body }
+    }
+
+    pub fn parse_program(&mut self) -> Program {
+        let mut functions: Vec<Function> = Vec::new();
+        let mut stmts: Vec<Stmt> = Vec::new();
+
+        self.skip_newlines();
+
+        while self.current_token != Token::EOF {
+            match self.current_token {
+                Token::KwFunc => {
+                    let func = self.parse_function();
+                    functions.push(func);
+                }
+                _ => {
+                    let stmt = self.parse_stmt();
+                    stmts.push(stmt);
+                }
+            }
+            self.skip_newlines();
+        }
+
+        Program { functions, stmts }
     }
 }
