@@ -486,3 +486,80 @@ impl Interpreter {
         ret
     }
 }
+
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::Lexer;
+    use crate::parser::Parser;
+
+    /// Хелпер: прогнать кусок Rusthon-кода через лексер, парсер и интерпретатор.
+    fn run_source(src: &str) {
+        let lexer = Lexer::new(src);
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program();
+        let mut interp = Interpreter::new();
+        interp.run(&program);
+    }
+
+    #[test]
+    fn simple_arith_and_while_does_not_panic() {
+        let src = r#"
+            var x: int = 0
+            var sum: int = 0
+
+            while (x < 5) {
+                sum = sum + x
+                x = x + 1
+            }
+
+            print("sum =", sum)
+        "#;
+
+        // Если где-то баг в лексере/парсере/интерпретаторе — тест упадёт с panic.
+        run_source(src);
+    }
+
+    #[test]
+    fn functions_branching_and_foreach_does_not_panic() {
+        let src = r#"
+            func sum_list(xs: list) {
+                var acc: int = 0
+                for v in xs {
+                    acc = acc + v
+                }
+                print("sum_list =", acc)
+            }
+
+            func classify_and_print(n: int) {
+                if (n < 0) {
+                    print("neg")
+                } elif (n == 0) {
+                    print("zero")
+                } else {
+                    print("pos")
+                }
+            }
+
+            func main() {
+                var xs: list = [1, 2, 3, 4]
+                sum_list(xs)
+
+                classify_and_print(1)
+                classify_and_print(0)
+                classify_and_print(1)
+
+                print("for i in 5")
+                for i in 5 {
+                    print(i)
+                }
+            }
+
+            main()
+        "#;
+
+        run_source(src);
+    }
+}
