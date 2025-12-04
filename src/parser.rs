@@ -1,5 +1,6 @@
 // parser.rs
 use crate::ast::{BinOp, Expr, Program, Stmt, Type};
+use crate::interpreter::Value;
 use crate::lexer::{Lexer, Token};
 
 pub struct Parser {
@@ -27,6 +28,19 @@ impl Parser {
                 self.bump();
                 expr
             }
+            Token::StrLiteral(s) => {
+                let expr = Expr::Str(s.clone());
+                self.bump();
+                expr
+            }
+            Token::KwTrue => {
+                self.bump();
+                Expr::Bool(true)
+            }
+            Token::KwFalse => {
+                self.bump();
+                Expr::Bool(false)
+            }
             Token::Ident(name) => {
                 let expr = Expr::Var(name.clone());
                 self.bump();
@@ -35,13 +49,13 @@ impl Parser {
             Token::LParen => {
                 self.bump();
                 let expr = self.parse_expr();
-                println!("[PARSER DEBUG] {:?}", expr);
                 if self.current_token != Token::RParen {
                     panic!("Expected ')'");
                 }
                 self.bump();
                 expr
             }
+            Token::LBracket => self.parse_list_literal(),
             _ => panic!("Unexpected primary token: {:?}", self.current_token),
         }
     }
@@ -179,7 +193,9 @@ impl Parser {
     fn parse_stmt(&mut self) -> Stmt {
         match self.current_token {
             Token::Kwvar => self.parse_var_decl(),
-            Token::KwIf => self.parce_if_stmt(),
+            Token::KwIf => self.parse_if_stmt(),
+            Token::KwWhile => self.parse_while_stmt(),
+            Token::KwFor => self.parse_for_stmt(),
             _ => {
                 let expr = self.parse_expr();
                 if self.current_token == Token::Newline {
@@ -246,47 +262,85 @@ impl Parser {
         stmts
     }
 
-    fn parce_if_stmt(&mut self) -> Stmt {
-    // current_token == KwIf
-    self.bump(); // съели 'if'
+    fn parse_if_stmt(&mut self) -> Stmt {
+        // current_token == KwIf
+        self.bump(); // съели 'if'
 
-    let cond = self.parse_expr();
+        let cond = self.parse_expr();
 
-    let then_branch = self.parse_block();
+        let then_branch = self.parse_block();
 
-    let mut else_if_branches: Vec<Stmt> = Vec::new();
+        let mut else_if_branches: Vec<Stmt> = Vec::new();
 
-    self.skip_newlines();
+        self.skip_newlines();
 
-    loop {
-        if self.current_token == Token::KwElseIf {
-            self.bump(); // съели 'elif'
+        loop {
+            if self.current_token == Token::KwElseIf {
+                self.bump(); // съели 'elif'
 
-            let cond = self.parse_expr();
-            let then_branch = self.parse_block();
+                let cond = self.parse_expr();
+                let then_branch = self.parse_block();
 
-            else_if_branches.push(Stmt::ElseIfBranch { cond, then_branch });
+                else_if_branches.push(Stmt::ElseIfBranch { cond, then_branch });
 
-            self.skip_newlines();
+                self.skip_newlines();
+            } else {
+                break;
+            }
+        }
+
+        let else_branch = if self.current_token == Token::KwElse {
+            self.bump(); // съели 'else'
+            let block = self.parse_block();
+            block
         } else {
-            break;
+            Vec::new()
+        };
+
+        Stmt::Branch {
+            cond,
+            then_branch,
+            else_if_branches,
+            else_branch,
         }
     }
 
-    let else_branch = if self.current_token == Token::KwElse {
-        self.bump(); // съели 'else'
-        let block = self.parse_block();
-        block
-    } else {
-        Vec::new()
-    };
+    fn parse_while_stmt(&mut self) -> Stmt {
+        self.bump();
+        let cond = self.parse_expr();
+        let body = self.parse_block();
 
-    Stmt::Branch {
-        cond,
-        then_branch,
-        else_if_branches,
-        else_branch,
+        Stmt::While { cond, body }
     }
-}
+    fn parse_for_stmt(&mut self) -> Stmt {
+        self.bump();
 
+        match &self.current_token {
+            Token::LParen => {
+                self.bump();
+                let cond = self.parse_expr();
+                if self.current_token != Token::RParen {
+                    panic! {"Invalid for statement"};
+                }
+                let body = self.parse_block();
+                Stmt::For { cond, body }
+            }
+            Token::Ident(name) => {
+                let var_name = name.clone();
+                self.bump();
+                if self.current_token != Token::KwIn {
+                    panic!("Invalid foreach statement");
+                }
+                self.bump();
+                let iter_expr = self.parse_expr();
+                let body = self.parse_block();
+                Stmt::ForEach {
+                    var_name,
+                    iter_expr,
+                    body,
+                }
+            }
+            _ => panic!("Invalid for statement"),
+        }
+    }
 }

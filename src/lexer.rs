@@ -18,7 +18,7 @@ pub enum Token {
     KwIn,
     KwTrue,
     KwFalse,
-
+    KwWhile,
     // Литералы
     IntLiteral(i64),
     StrLiteral(String),
@@ -49,6 +49,7 @@ pub enum Token {
     Comma,    // ,
 }
 
+#[derive(Clone)]
 pub struct Lexer {
     input: Vec<char>,
     pos: usize, // текущий индекс
@@ -205,10 +206,11 @@ impl Lexer {
             "if" => Token::KwIf,
             "elif" => Token::KwElseIf,
             "else" => Token::KwElse,
+            "while" => Token::KwWhile,
             "for" => Token::KwFor,
             "in" => Token::KwIn,
-            "True" => Token::KwTrue,
-            "False" => Token::KwFalse,
+            "true" => Token::KwTrue,
+            "false" => Token::KwFalse,
             _ => Token::Ident(s),
         }
     }

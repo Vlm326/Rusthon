@@ -4,6 +4,7 @@ pub enum Type {
     Int,
     Bool,
     Str,
+    List,
 }
 
 #[derive(Debug, Clone)]
@@ -14,6 +15,10 @@ pub enum Stmt {
         init: Expr,
     },
     ExprStmt(Expr),
+    Assign {
+        name: String,
+        expr: Expr,
+    },
     Branch {
         cond: Expr,
         then_branch: Vec<Stmt>,
@@ -23,6 +28,21 @@ pub enum Stmt {
     ElseIfBranch {
         cond: Expr,
         then_branch: Vec<Stmt>,
+    },
+    While {
+        cond: Expr,
+        body: Vec<Stmt>,
+    },
+    For {
+        cond: Expr,
+        body: Vec<Stmt>,
+    },
+
+    // 🔹 for x in expr { body }
+    ForEach {
+        var_name: String,
+        iter_expr: Expr,
+        body: Vec<Stmt>,
     },
 }
 
@@ -47,6 +67,7 @@ pub enum Expr {
         callee: String,
         args: Vec<Expr>,
     },
+    ListLiteral(Vec<Expr>),
 }
 
 #[derive(Debug, Clone, Copy)]

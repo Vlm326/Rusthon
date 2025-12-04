@@ -1,10 +1,6 @@
-var a: int = 56
-var b: int = 16
-var c: int = 56
-if (a < b) {
-    print(a)
-} elif (a == c){
-    print(c)
-} else {
-    print(b)
+var i: int = 0
+
+
+for ch in "hey" {
+    print(ch) 
 }

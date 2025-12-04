@@ -66,7 +66,6 @@ impl Interpreter {
                             return;
                         }
                     } else {
-                        // На всякий случай — защитный assert
                         panic!("non-ElseIfBranch inside else_if_branches");
                     }
                 }
@@ -77,6 +76,51 @@ impl Interpreter {
                 }
             }
 
+            Stmt::While { cond, body } => loop {
+                match self.eval_expr(cond) {
+                    Value::Bool(true) => {
+                        for s in body {
+                            self.exec_stmt(s);
+                        }
+                    }
+                    Value::Bool(false) => break,
+                    _ => panic!("While condition must be boolin"),
+                }
+            },
+
+            Stmt::For { cond, body } => loop {
+                match self.eval_expr(cond) {
+                    Value::Bool(true) => {
+                        for s in body {
+                            self.exec_stmt(s);
+                        }
+                    }
+                    Value::Bool(false) => break,
+                    _ => panic!("Invalid for statement"),
+                }
+            },
+            Stmt::ForEach {
+                var_name,
+                iter_expr,
+                body,
+            } => {
+                let iterable = self.eval_expr(iter_expr);
+                match iterable {
+                    Value::Str(s) => {
+                        for ch in s.chars() {
+                            self.env
+                                .insert(var_name.clone(), Value::Str(ch.to_string()));
+                            for s in body {
+                                self.exec_stmt(s);
+                            }
+                        }
+                    }
+
+                    _ => {
+                        panic!("for-each can iterate only over int (as 0..n) or string");
+                    }
+                }
+            }
             _ => panic!("Unsupported statement"),
         }
     }
@@ -127,7 +171,7 @@ impl Interpreter {
                 _ => panic!("Type error"),
             },
             BinOp::Sub => match (left, right) {
-                (Value::Int(left), Value::Int(right)) => Value::Int(left + right),
+                (Value::Int(left), Value::Int(right)) => Value::Int(left - right),
                 _ => panic!("Type error, you can't subtract not a number values"),
             },
             BinOp::Div => match (left, right) {
@@ -146,31 +190,26 @@ impl Interpreter {
             },
             BinOp::Gt => match (left, right) {
                 (Value::Int(left), Value::Int(right)) => Value::Bool(left > right),
-                (Value::Bool(left), Value::Bool(right)) => Value::Bool((left as i8) > right as i8),
                 (Value::Str(left), Value::Str(right)) => Value::Bool(left.len() > right.len()),
                 _ => panic!("Type error in greater then"),
             },
             BinOp::GtEq => match (left, right) {
                 (Value::Int(left), Value::Int(right)) => Value::Bool(left >= right),
-                (Value::Bool(left), Value::Bool(right)) => Value::Bool((left as i8) >= right as i8),
                 (Value::Str(left), Value::Str(right)) => Value::Bool(left.len() >= right.len()),
                 _ => panic!("Type error in greater or equal then"),
             },
             BinOp::Lt => match (left, right) {
                 (Value::Int(left), Value::Int(right)) => Value::Bool(left < right),
-                (Value::Bool(left), Value::Bool(right)) => Value::Bool((left as i8) < right as i8),
                 (Value::Str(left), Value::Str(right)) => Value::Bool(left.len() < right.len()),
                 _ => panic!("Type error in less then"),
             },
             BinOp::LtEq => match (left, right) {
                 (Value::Int(left), Value::Int(right)) => Value::Bool(left <= right),
-                (Value::Bool(left), Value::Bool(right)) => Value::Bool((left as i8) <= right as i8),
                 (Value::Str(left), Value::Str(right)) => Value::Bool(left.len() <= right.len()),
                 _ => panic!("Type error in less or equal then"),
             },
             BinOp::NotEq => match (left, right) {
                 (Value::Int(left), Value::Int(right)) => Value::Bool(left != right),
-                (Value::Bool(left), Value::Bool(right)) => Value::Bool((left as i8) != right as i8),
                 (Value::Str(left), Value::Str(right)) => Value::Bool(!left.eq(&right)),
                 _ => panic!("Type error in not equal"),
             },
