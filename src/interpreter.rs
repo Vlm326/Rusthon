@@ -8,6 +8,7 @@ pub enum Value {
     Int(i64),
     Bool(bool),
     Str(String),
+    List(Vec<Value>),
     Unit,
 }
 pub struct Interpreter {
@@ -42,6 +43,13 @@ impl Interpreter {
                 let _v = self.eval_expr(expr);
             }
 
+            Stmt::Assign { name, expr } => {
+                if !self.env.contains_key(name) {
+                    panic!("assignment to undeclared variable '{}'", name);
+                }
+                let value = self.eval_expr(expr);
+                self.env.insert(name.clone(), value);
+            }
             Stmt::Branch {
                 cond,
                 then_branch,
@@ -115,12 +123,21 @@ impl Interpreter {
                             }
                         }
                     }
+                    Value::List(list) => {
+                        for v in list {
+                            self.env.insert(var_name.clone(), v);
+                            for st in body {
+                                self.exec_stmt(st);
+                            }
+                        }
+                    }
 
                     _ => {
                         panic!("for-each can iterate only over int (as 0..n) or string");
                     }
                 }
             }
+
             _ => panic!("Unsupported statement"),
         }
     }
@@ -130,6 +147,7 @@ impl Interpreter {
             (Value::Int(_), Type::Int) => true,
             (Value::Bool(_), Type::Bool) => true,
             (Value::Str(_), Type::Str) => true,
+            (Value::List(_), Type::List) => true,
             _ => false,
         }
     }
@@ -149,6 +167,13 @@ impl Interpreter {
                 let l = self.eval_expr(left);
                 let r = self.eval_expr(right);
                 self.eval_bin(l, op, r)
+            }
+            Expr::ListLiteral(items) => {
+                let mut vals = Vec::new();
+                for e in items {
+                    vals.push(self.eval_expr(e));
+                }
+                Value::List(vals)
             }
             Expr::Call { callee, args } => self.eval_call(callee, args),
         }
