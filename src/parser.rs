@@ -21,6 +21,11 @@ impl Parser {
         self.current_token = self.lexer.next_token();
     }
 
+    fn peek_token(&mut self) -> Token {
+        let mut cloned_lexer = self.lexer.clone();
+        cloned_lexer.next_token()
+    }
+
     fn parse_primary(&mut self) -> Expr {
         match &self.current_token {
             Token::IntLiteral(value) => {
@@ -196,6 +201,17 @@ impl Parser {
             Token::KwIf => self.parse_if_stmt(),
             Token::KwWhile => self.parse_while_stmt(),
             Token::KwFor => self.parse_for_stmt(),
+            Token::Ident(_) => {
+                if self.peek_token() == Token::Eq {
+                    self.parse_assign_stmt()
+                } else {
+                    let expr = self.parse_expr();
+                    if self.current_token == Token::Newline {
+                        self.bump();
+                    }
+                    Stmt::ExprStmt(expr)
+                }
+            }
             _ => {
                 let expr = self.parse_expr();
                 if self.current_token == Token::Newline {
@@ -242,6 +258,10 @@ impl Parser {
             Token::Ident(name) if name == "str" => {
                 self.bump();
                 Type::Str
+            }
+            Token::Ident(name) if name == "list" => {
+                self.bump();
+                Type::List
             }
             other => panic!("expected type name, found {:?}", other),
         }
@@ -342,5 +362,53 @@ impl Parser {
             }
             _ => panic!("Invalid for statement"),
         }
+    }
+    fn parse_list_literal(&mut self) -> Expr {
+        self.bump();
+
+        let mut items = Vec::new();
+
+        if self.current_token != Token::RBracket {
+            loop {
+                let expr = self.parse_expr();
+                items.push(expr);
+
+                if self.current_token == Token::Comma {
+                    self.bump();
+                    continue;
+                }
+                break;
+            }
+        }
+
+        if self.current_token != Token::RBracket {
+            panic!("expected ']' at end of list literal");
+        }
+        self.bump();
+
+        Expr::ListLiteral(items)
+    }
+    fn parse_assign_stmt(&mut self) -> Stmt {
+        let name = match &self.current_token {
+            Token::Ident(n) => {
+                let s = n.clone();
+                self.bump();
+                s
+            }
+            other => panic!(
+                "expected identifier at start of assignment, found {:?}",
+                other
+            ),
+        };
+
+        self.expect(Token::Eq);
+
+        let expr = self.parse_expr();
+
+        if self.current_token == Token::Newline {
+            self.bump();
+        }
+
+        Stmt::Assign { name, expr }
     }
 }

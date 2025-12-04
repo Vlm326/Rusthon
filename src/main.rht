@@ -1,6 +1,18 @@
-var i: int = 0
+var xs: list = [1, 2, 3]
+var s: str = "hi"
 
+print(xs)
 
-for ch in "hey" {
-    print(ch) 
+for x in xs {
+    print(x)
 }
+
+for ch in "ok" {
+    print(ch)
+}
+
+var i: int = 0
+i = i + 1
+print(i)
+i = 10
+print(i)

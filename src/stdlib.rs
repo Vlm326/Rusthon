@@ -15,6 +15,14 @@ pub fn call_builtin(name: &str, args: &Vec<Value>) -> Option<Value> {
                     Value::Int(n) => print!("{n}"),
                     Value::Bool(b) => print!("{b}"),
                     Value::Str(s) => print!("{s}"),
+                    Value::List(items) => {
+                        print!("[");
+                        for item in items{
+                            print!("{:?} ", item)
+                        }
+                        print!("]");
+                        println!();
+                    }
                     Value::Unit => print!("()"),
                 }
             }
