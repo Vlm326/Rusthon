@@ -1,21 +1,14 @@
-// stdlib.rs
-//
-// Встроенные функции языка Rusthon.
-// Здесь реализован "мини-стандартный" набор:
-//   - print(...)
-//   - len(x)
-//   - sum(xs)
-//   - range(n) / range(a, b)
-//   - str(x)
-
 use crate::interpreter::Value;
 
+/// Встроенные функции языка.
+/// Если имя совпадает с одной из функций ниже — возвращаем Some(Value),
+/// иначе None (значит, нужно искать пользовательскую функцию).
 pub fn call_builtin(name: &str, args: &Vec<Value>) -> Option<Value> {
     match name {
-        // ===== print =====
-        //
-        // print(1, "hi", true, [1, 2])
-        // выводит всё через пробел и возвращает ()
+        // --------------------------
+        // print(x, y, z, ...)
+        // Печатает значения через пробел и возвращает Unit.
+        // --------------------------
         "print" => {
             let mut first = true;
 
@@ -24,143 +17,198 @@ pub fn call_builtin(name: &str, args: &Vec<Value>) -> Option<Value> {
                     print!(" ");
                 }
                 first = false;
-
-                match v {
-                    Value::Int(n) => print!("{n}"),
-                    Value::Bool(b) => print!("{b}"),
-                    Value::Str(s) => print!("{s}"),
-                    Value::List(items) => {
-                        print!("[");
-                        for (i, item) in items.iter().enumerate() {
-                            if i > 0 {
-                                print!(", ");
-                            }
-                            match item {
-                                Value::Int(n) => print!("{n}"),
-                                Value::Bool(b) => print!("{b}"),
-                                Value::Str(s) => print!("{s}"),
-                                Value::List(_) => print!("<nested list>"),
-                                Value::Unit => print!("()"),
-                            }
-                        }
-                        print!("]");
-                    }
-                    Value::Unit => print!("()"),
-                }
+                print_value(v);
             }
             println!();
-
             Some(Value::Unit)
         }
 
-        // ===== len =====
-        //
-        // len("hello") -> 5
-        // len([1, 2, 3]) -> 3
+        // --------------------------
+        // len(x)
+        // Строка -> её длина (в символах)
+        // Список -> количество элементов
+        // --------------------------
         "len" => {
             if args.len() != 1 {
-                panic!("len(x) expects exactly 1 argument, got {}", args.len());
+                panic!("len(x) expects exactly 1 argument");
             }
-
             let v = &args[0];
             let n = match v {
-                Value::Str(s) => s.len() as i64,
-                Value::List(xs) => xs.len() as i64,
-                _ => panic!("len(x) only supports string and list, got {:?}", v),
+                Value::Str(s) => s.chars().count() as i64,
+                Value::List(items) => items.len() as i64,
+                other => panic!("len(...) is not defined for value {:?}", other),
             };
-
             Some(Value::Int(n))
         }
 
-        // ===== sum =====
-        //
-        // sum([1, 2, 3]) -> 6
-        "sum" => {
-            if args.len() != 1 {
-                panic!("sum(xs) expects exactly 1 argument, got {}", args.len());
-            }
-
-            let v = &args[0];
-            let xs = match v {
-                Value::List(xs) => xs,
-                _ => panic!("sum(xs) expects list of ints, got {:?}", v),
-            };
-
-            let mut acc: i64 = 0;
-            for item in xs {
-                match item {
-                    Value::Int(n) => acc += n,
-                    _ => panic!("sum(xs) expects all elements to be ints, got {:?}", item),
-                }
-            }
-
-            Some(Value::Int(acc))
-        }
-
-        // ===== range =====
-        //
-        // range(5)     -> [0, 1, 2, 3, 4]
-        // range(2, 5)  -> [2, 3, 4]
+        // --------------------------
+        // range(n)
+        // Создаёт список [0, 1, ..., n-1]
+        // --------------------------
         "range" => {
-            let list: Vec<Value> = match args.as_slice() {
-                [Value::Int(n)] => {
-                    if *n < 0 {
-                        panic!("range(n) with n < 0 is not supported");
-                    }
-                    (0..*n).map(|i| Value::Int(i)).collect()
-                }
-                [Value::Int(a), Value::Int(b)] => {
-                    if *a > *b {
-                        panic!("range(a, b) expects a <= b");
-                    }
-                    (*a..*b).map(|i| Value::Int(i)).collect()
-                }
-                _ => panic!("range expects 1 or 2 integer arguments, got {:?}", args),
+            if args.len() != 1 {
+                panic!("range(n) expects exactly 1 argument");
+            }
+            let n = match args[0] {
+                Value::Int(n) => n,
+                ref other => panic!("range(n): n must be int, got {:?}", other),
             };
-
-            Some(Value::List(list))
+            if n < 0 {
+                panic!("range(n): n must be >= 0");
+            }
+            let mut items = Vec::new();
+            for i in 0..n {
+                items.push(Value::Int(i));
+            }
+            Some(Value::List(items))
         }
 
-        // ===== str =====
+        // --------------------------
+        // push(list, value)
+        // Возвращает НОВЫЙ список с добавленным элементом.
         //
-        // str(123)        -> "123"
-        // str(true)       -> "true"
-        // str([1, 2, 3])  -> "[1, 2, 3]" (грубый формат)
+        //   xs = push(xs, 10)
+        // --------------------------
+        "push" => {
+            if args.len() != 2 {
+                panic!("push(list, value) expects exactly 2 arguments");
+            }
+            let list = match &args[0] {
+                Value::List(items) => items.clone(),
+                other => panic!("push(list, value): first arg must be list, got {:?}", other),
+            };
+            let mut new_list = list;
+            new_list.push(args[1].clone());
+            Some(Value::List(new_list))
+        }
+
+        // --------------------------
+        // head(list)
+        // Первый элемент списка.
+        // --------------------------
+        "head" => {
+            if args.len() != 1 {
+                panic!("head(list) expects exactly 1 argument");
+            }
+            match &args[0] {
+                Value::List(items) => {
+                    if items.is_empty() {
+                        panic!("head([]): empty list");
+                    }
+                    Some(items[0].clone())
+                }
+                other => panic!("head(list): argument must be list, got {:?}", other),
+            }
+        }
+
+        // --------------------------
+        // tail(list)
+        // Все элементы списка, кроме первого.
+        // --------------------------
+        "tail" => {
+            if args.len() != 1 {
+                panic!("tail(list) expects exactly 1 argument");
+            }
+            match &args[0] {
+                Value::List(items) => {
+                    if items.is_empty() {
+                        panic!("tail([]): empty list");
+                    }
+                    let tail_slice = &items[1..];
+                    Some(Value::List(tail_slice.to_vec()))
+                }
+                other => panic!("tail(list): argument must be list, got {:?}", other),
+            }
+        }
+
+        // --------------------------
+        // str(x)
+        // Преобразование к строке:
+        //   int  -> "123"
+        //   bool -> "true"/"false"
+        //   str  -> как есть
+        //   list -> строка вида "[1, 2, 3]" (упрощённо)
+        // --------------------------
         "str" => {
             if args.len() != 1 {
-                panic!("str(x) expects exactly 1 argument, got {}", args.len());
+                panic!("str(x) expects exactly 1 argument");
             }
-
-            let v = &args[0];
-            let s = match v {
+            let s = match &args[0] {
                 Value::Int(n) => n.to_string(),
                 Value::Bool(b) => b.to_string(),
                 Value::Str(s) => s.clone(),
-                Value::Unit => "()".to_string(),
-                Value::List(xs) => {
-                    // простой, но рабочий формат
-                    let mut out = String::from("[");
-                    for (i, item) in xs.iter().enumerate() {
-                        if i > 0 {
-                            out.push_str(", ");
-                        }
-                        out.push_str(&match item {
-                            Value::Int(n) => n.to_string(),
-                            Value::Bool(b) => b.to_string(),
-                            Value::Str(s) => s.clone(),
-                            Value::Unit => "()".to_string(),
-                            Value::List(_) => "<nested list>".to_string(),
-                        });
+                Value::List(items) => {
+                    // Простое представление списка
+                    let mut parts = Vec::new();
+                    for it in items {
+                        parts.push(format!("{:?}", it));
                     }
-                    out.push(']');
-                    out
+                    format!("[{}]", parts.join(", "))
                 }
+                Value::Unit => "()".to_string(),
             };
-
             Some(Value::Str(s))
         }
 
-        // неизвестное имя — не встроенная функция
+        // --------------------------
+        // int(x)
+        // Преобразование к целому:
+        //   int  -> int
+        //   bool -> 0/1
+        //   str  -> parse::<i64>()
+        // --------------------------
+        "int" => {
+            if args.len() != 1 {
+                panic!("int(x) expects exactly 1 argument");
+            }
+            let n = match &args[0] {
+                Value::Int(n) => *n,
+                Value::Bool(b) => {
+                    if *b {
+                        1
+                    } else {
+                        0
+                    }
+                }
+                Value::Str(s) => s.parse::<i64>().unwrap_or_else(|_| {
+                    panic!("int(x): cannot parse string {:?} as integer", s);
+                }),
+                other => panic!("int(x) is not defined for {:?}", other),
+            };
+            Some(Value::Int(n))
+        }
+
+        // неизвестная функция — пусть ищет пользовательскую
         _ => None,
+    }
+}
+
+/// Внутренний helper для print: красиво печатает любое Value.
+fn print_value(v: &Value) {
+    match v {
+        Value::Int(n) => print!("{n}"),
+        Value::Bool(b) => print!("{b}"),
+        Value::Str(s) => print!("{s}"),
+        Value::Unit => print!("()"),
+
+        Value::List(items) => {
+            print!("[");
+            let mut first = true;
+            for item in items {
+                if !first {
+                    print!(", ");
+                }
+                first = false;
+                match item {
+                    Value::Int(n) => print!("{n}"),
+                    Value::Bool(b) => print!("{b}"),
+                    Value::Str(s) => print!("\"{s}\""),
+                    Value::Unit => print!("()"),
+                    // Вложенные списки/сложные значения пока просто через Debug
+                    Value::List(_) => print!("{:?}", item),
+                }
+            }
+            print!("]");
+        }
     }
 }
