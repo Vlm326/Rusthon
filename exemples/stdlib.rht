@@ -1,0 +1,31 @@
+func main() {
+    var name: str = "Rusthon"
+    var xs: list = [1, 2, 3]
+
+    print("len(name) =")
+    print(len(name))
+
+    print("len(xs) =")
+    print(len(xs))
+
+    print("range(5) =")
+    var r: list = range(5)
+    print(r)
+
+    print("push(xs, 4) =")
+    var ys: list = push(xs, 4)
+    print(ys)
+
+    print("head(ys) =")
+    print(head(ys))
+
+    print("tail(ys) =")
+    print(tail(ys))
+
+    print("str(123) =")
+    print(str(123))
+
+    
+}
+
+main()

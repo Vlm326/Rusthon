@@ -1,0 +1,31 @@
+func add(a: int, b: int) {
+    return a + b
+}
+
+func fact(n: int) {
+    var res: int = 1
+    var i: int = 1
+    while (i <= n) {
+        res = res * i
+        i = i + 1
+    }
+    return res
+}
+
+func greet(name: str) {
+    print("Hello,", name)
+}
+
+func main() {
+    var x: int = add(2, 3)
+    print("add(2, 3) =")
+    print(x)
+
+    var f: int = fact(5)
+    print("fact(5) =")
+    print(f)
+
+    greet("Rusthon")
+}
+
+main()

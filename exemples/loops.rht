@@ -1,0 +1,35 @@
+func count_to_n(n: int) {
+    var i: int = 0
+    while (i < n) {
+        print(i)
+        i = i + 1
+    }
+}
+
+func foreach_examples() {
+    var xs: list = [10, 20, 30]
+
+    print("for i in 5")
+    for i in 5 {
+        print(i)
+    }
+
+    print("for ch in hi")
+    for ch in "hi" {
+        print(ch)
+    }
+
+    print("for v in xs")
+    for v in xs {
+        print(v)
+    }
+}
+
+func main() {
+    print("while (i < n)")
+    count_to_n(5)
+
+    foreach_examples()
+}
+
+main()
