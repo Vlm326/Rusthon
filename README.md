@@ -1,6 +1,10 @@
 # Rusthon🦀
 
 ![CI](https://github.com/Vlm326/Rusthon/actions/workflows/ci.yml/badge.svg)
+![License](https://img.shields.io/github/license/<USER>/<REPO>)
+![Issues](https://img.shields.io/github/issues/<USER>/<REPO>)
+![PRs](https://img.shields.io/github/issues-pr/<USER>/<REPO>)
+![Stars](https://img.shields.io/github/stars/<USER>/<REPO>)
 
 Небольшой интерпретируемый язык программирования, написанный на Rust.  
 Цель проекта — пощупать, как реально работают **лексер, парсер, AST, интерпретатор**, области видимости и простая стандартная библиотека.
